@@ -97,6 +97,12 @@ class DirectTableExtractor:
                 poe_power_parts.append(f"DC:{specs['POE总功率_DC']}W")
             if poe_power_parts and 'POE总功率' not in specs:
                 specs['POE总功率'] = '/'.join(poe_power_parts)
+            
+            # Remove redundant POE power fields after merging
+            if 'POE总功率_AC' in specs:
+                del specs['POE总功率_AC']
+            if 'POE总功率_DC' in specs:
+                del specs['POE总功率_DC']
         
         return all_data
     
@@ -364,6 +370,8 @@ class DirectTableExtractor:
             r'qsfp(?!\+)\s*port|qsfp(?!\+)\s*光口': 'QSFP端口数',
             r'qsfp28\s*port|qsfp28\s*光口': 'QSFP28端口数',
             r'multigiga|multi-giga|2\.5g|5g|多速率': 'MultiGiga端口数',
+            r'maximum\s*stacking\s*bandwidth|堆叠带宽|最大堆叠带宽': '最大堆叠带宽',
+            r'maximum\s*stacking\s*num|堆叠数量|最大堆叠数': '最大堆叠数',
         }
         
         param_lower = param.lower()
