@@ -109,7 +109,9 @@ class DirectTableExtractor:
             return self._extract_performance_table(headers, rows)
         elif table_type == 'protocols':
             return self._extract_protocols_table(headers, rows)
-        elif len(headers) > 2 and self._is_multi_model_table(headers):
+        
+        # Check if this is a multi-model hardware table
+        if len(headers) > 2 and self._is_multi_model_table(headers):
             return self._extract_multi_model_table(headers, rows)
         else:
             return self._extract_generic_table(headers, rows)
@@ -121,10 +123,10 @@ class DirectTableExtractor:
         # Check for protocols first (to avoid misclassification with POE keywords)
         if 'organization' in text_lower and any(x in text_lower for x in ['ieee', 'rfc', 'standard']):
             return 'protocols'
-        elif any(x in text_lower for x in ['poe', '802.3af', '802.3at', 'power capacity']):
-            # Make sure it's not a protocols table with POE mentions
-            if 'standards and protocols' in text_lower:
-                return 'protocols'
+        elif 'standards and protocols' in text_lower:
+            return 'protocols'
+        # Check for actual POE power tables (not just model names with PWR)
+        elif any(x in text_lower for x in ['poe power capacity', 'total poe power', '802.3af', '802.3at']) and 'quantity' in text_lower:
             return 'poe'
         elif any(x in text_lower for x in ['entries', 'mac address entries', 'vlan table', 'routing entries', 'arp entries']):
             # Performance tables often have "Entries" in title and contain metrics
