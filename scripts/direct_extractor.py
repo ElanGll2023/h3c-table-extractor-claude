@@ -43,7 +43,7 @@ class DirectTableExtractor:
                     if not specs:  # Skip empty entries
                         continue
                     # Check if this is a series-level entry
-                    if 'Series' in model_name or 'Protocols' in model_name or model_name.startswith(('RFC', 'IEEE', 'ITU', 'IETF')):
+                    if 'Series' in model_name or 'Performance' in model_name or 'Protocols' in model_name or model_name.startswith(('RFC', 'IEEE', 'ITU', 'IETF')):
                         series_data[model_name] = specs
                     else:
                         if model_name not in all_data:
@@ -73,6 +73,10 @@ class DirectTableExtractor:
                             all_data[model_name].update(series_specs)
                     elif 'Protocols' in series_key:
                         # Protocols apply to all models
+                        for model_name in model_keys:
+                            all_data[model_name].update(series_specs)
+                    elif 'Performance' in series_key:
+                        # Performance data applies to all models in the series
                         for model_name in model_keys:
                             all_data[model_name].update(series_specs)
         
@@ -114,9 +118,18 @@ class DirectTableExtractor:
         """Detect table type from content."""
         text_lower = text.lower()
         
-        if any(x in text_lower for x in ['poe', '802.3af', '802.3at', 'power capacity']):
+        # Check for protocols first (to avoid misclassification with POE keywords)
+        if 'organization' in text_lower and any(x in text_lower for x in ['ieee', 'rfc', 'standard']):
+            return 'protocols'
+        elif any(x in text_lower for x in ['poe', '802.3af', '802.3at', 'power capacity']):
+            # Make sure it's not a protocols table with POE mentions
+            if 'standards and protocols' in text_lower:
+                return 'protocols'
             return 'poe'
-        elif any(x in text_lower for x in ['vlan', 'routing protocol', 'security feature']):
+        elif any(x in text_lower for x in ['entries', 'mac address entries', 'vlan table', 'routing entries', 'arp entries']):
+            # Performance tables often have "Entries" in title and contain metrics
+            return 'performance'
+        elif any(x in text_lower for x in ['vlan', 'routing protocol', 'security feature', 'layer 2', 'layer 3']):
             return 'software'
         elif any(x in text_lower for x in ['ieee', 'rfc', 'standard', 'compliance']):
             return 'protocols'
@@ -140,6 +153,16 @@ class DirectTableExtractor:
         headers = []
         for th in header_row.find_all(['th', 'td']):
             headers.append(th.get_text(strip=True))
+        
+        # Handle special tables with merged title row (e.g., "FeatureS5130S-EI Series Switches")
+        # These tables actually have 2 columns: Feature | Description
+        # Only apply to Feature/Entries tables, not to Organization/Protocols tables
+        if len(headers) == 1:
+            header_text = headers[0].lower()
+            if any(keyword in header_text for keyword in ['feature', 'entries']):
+                # This is a software or performance table with implicit 2 columns
+                headers = ['Feature', 'Description']
+            # Note: Organization/Protocols tables keep their original structure
         
         # Find data rows
         rows = []
@@ -440,8 +463,10 @@ class DirectTableExtractor:
                 perf_data[norm_name] = value
         
         if perf_data:
+            # Use a unique key for performance data to avoid overwriting software features
             model_series = value_col if 'S' in value_col else 'Performance'
-            result[model_series] = perf_data
+            perf_key = model_series.replace('Switches', 'Performance') if 'Switches' in model_series else f"{model_series} Performance"
+            result[perf_key] = perf_data
         
         return result
     
