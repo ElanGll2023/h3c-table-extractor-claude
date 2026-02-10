@@ -85,6 +85,9 @@ class DirectTableExtractor:
             # Merge 1G端口数 into 1000Base-T端口数
             if '1G端口数' in specs and '1000Base-T端口数' not in specs:
                 specs['1000Base-T端口数'] = specs['1G端口数']
+            # Remove the redundant 1G端口数 field after merging
+            if '1G端口数' in specs:
+                del specs['1G端口数']
             
             # Merge POE总功率_AC/DC into POE总功率
             poe_power_parts = []
