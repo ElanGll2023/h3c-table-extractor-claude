@@ -339,7 +339,12 @@ class DirectTableExtractor:
             r'jumbo\s*frame|巨帧': '巨帧',
             r'buffer|缓存|缓冲区': '缓存',
             r'base-t\s*port|电口|以太网口': '电口数量',
-            r'sfp\s*port|sfp光口': 'SFP端口数',
+            r'sfp\+\s*port|sfp\+\s*光口': 'SFP+端口数',
+            r'sfp(?!\+)\s*port|sfp(?!\+)\s*光口': 'SFP端口数',
+            r'sfp28\s*port|sfp28\s*光口': 'SFP28端口数',
+            r'qsfp\+\s*port|qsfp\+\s*光口': 'QSFP+端口数',
+            r'qsfp(?!\+)\s*port|qsfp(?!\+)\s*光口': 'QSFP端口数',
+            r'qsfp28\s*port|qsfp28\s*光口': 'QSFP28端口数',
         }
         
         param_lower = param.lower()
@@ -360,20 +365,39 @@ class DirectTableExtractor:
         result = {}
         text = f"{value} {feature}".lower()
         
-        # Parse different port types
-        patterns = [
-            (r'(\d+)\s*[\*x×]?\s*sfp28', 'SFP28端口数'),
-            (r'(\d+)\s*[\*x×]?\s*sfp\+', 'SFP+端口数'),
-            (r'(\d+)\s*[\*x×]?\s*qsfp28', 'QSFP28端口数'),
-            (r'(\d+)\s*[\*x×]?\s*qsfp\+', 'QSFP+端口数'),
-            (r'(\d+)\s*[\*x×]?\s*sfp(?!\+|28)', 'SFP端口数'),
-            (r'(\d+)\s*[\*x×]?\s*10/?100/?1000\s*base-t', '1000Base-T端口数'),
+        # First, try to extract the main port number from value (e.g., "24 (8*BASE-T combo)")
+        # Pattern: number followed by optional combo info
+        main_match = re.match(r'(\d+)\s*(?:\([^)]*\))?', value.lower())
+        if main_match:
+            port_count = int(main_match.group(1))
+            
+            # Determine port type from feature
+            if 'sfp28' in text:
+                result['SFP28端口数'] = port_count
+            elif 'sfp+' in text or 'sfp plus' in text:
+                result['SFP+端口数'] = port_count
+            elif 'qsfp28' in text:
+                result['QSFP28端口数'] = port_count
+            elif 'qsfp+' in text or 'qsfp plus' in text:
+                result['QSFP+端口数'] = port_count
+            elif 'sfp' in text:
+                result['SFP端口数'] = port_count
+            elif 'base-t' in text or 'ethernet' in text or '电口' in text:
+                result['1000Base-T端口数'] = port_count
+        
+        # Parse Combo port info: e.g., "24 (8*BASE-T combo)" or "(8 combo)"
+        combo_match = re.search(r'\((\d+)\s*\*?\s*(?:base-t\s*)?combo\)', text)
+        if combo_match:
+            result['Combo端口数'] = int(combo_match.group(1))
+        
+        # Also parse 2.5G, 5G, 10G ports from full text
+        patterns_ng = [
             (r'(\d+)\s*[\*x×]?\s*2\.5g', '2.5G端口数'),
             (r'(\d+)\s*[\*x×]?\s*5g', '5G端口数'),
             (r'(\d+)\s*[\*x×]?\s*10g', '10G端口数'),
         ]
         
-        for pattern, port_type in patterns:
+        for pattern, port_type in patterns_ng:
             match = re.search(pattern, text)
             if match:
                 result[port_type] = int(match.group(1))
