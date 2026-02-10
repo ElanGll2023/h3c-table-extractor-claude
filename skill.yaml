@@ -1,0 +1,7 @@
+name: h3c-table-extractor-claude
+description: |
+  Claude Code skill for extracting H3C switch specifications from HTML tables.
+  Handles hardware specs, software features, performance metrics, and protocol compliance.
+  Supports encoding fix, merged cells, and filtering of removable components.
+version: 1.0.0
+author: ElanGll2023
