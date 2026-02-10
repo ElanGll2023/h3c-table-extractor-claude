@@ -122,8 +122,31 @@ class DirectTableExtractor:
                 del specs['POE总功率_AC']
             if 'POE总功率_DC' in specs:
                 del specs['POE总功率_DC']
+            
+            # Classify as box switch or chassis switch
+            specs['交换机类型'] = self._classify_switch_type(model_name, specs)
         
         return all_data
+    
+    def _classify_switch_type(self, model_name: str, specs: Dict) -> str:
+        """Classify switch as box (fixed) or chassis (modular) type."""
+        # Chassis switches typically have these model prefixes
+        chassis_prefixes = ['S125', 'S105', 'S76', 'S75', 'S95', 'S98']
+        
+        # Check model name prefix
+        for prefix in chassis_prefixes:
+            if model_name.startswith(prefix):
+                return '框式交换机'
+        
+        # Check for chassis-specific parameters
+        chassis_params = ['业务板槽位', '主控板槽位', '接口板槽位', '槽位数', 'chassis', 'slot']
+        for param in specs:
+            param_lower = param.lower()
+            if any(cp in param_lower for cp in chassis_params):
+                return '框式交换机'
+        
+        # Default to box switch
+        return '盒式交换机'
     
     def _process_table(self, table: Tag, index: int, page_url: str) -> Optional[Dict[str, Dict]]:
         """Process a single table."""
@@ -682,37 +705,49 @@ class DirectTableExtractor:
         """Extract series-level feature keywords from page."""
         features = []
         
-        # Common feature section keywords to look for
-        feature_keywords = [
-            'SmartMC', 'Smart Management Center',
-            'IRF2', 'Intelligent Resilient Framework 2',
-            'IRF', 'Intelligent Resilient Framework',
-            'APM', 'Application Performance Management',
-            'EAA', 'Embedded Automation Architecture',
-            'VxLAN',
-            'SDN', 'Software Defined Network',
-            'Comprehensive Security',
-            'Multigigabit',
-            'Smart Link',
-            'RRPP',
+        # Look for h2/h3 headers that describe product features
+        # Skip table-related headers and generic page sections
+        skip_patterns = [
+            'hardware', 'specification', 'performance', 'poe', 'removable',
+            'components', 'matrix', 'standards', 'protocols', 'resource',
+            'related', 'cloud', 'ai', 'intelligent', 'security', 'smb',
+            'terminal', 'industry', 'solution', 'service', 'policy',
+            'online', 'training', 'partner', 'profile', 'news', 'contact',
+            'blog', 'learning', 'certification', 'exhibition',
+            '规格', '性能', '硬件', '软件', '协议', '标准', '资源',
+            '博客', '培训', '认证', '展览', '联系'
         ]
         
-        # Look for h2/h3/h4 headers that contain feature names
-        headers = soup.find_all(['h2', 'h3', 'h4', 'strong', 'b'])
+        # Only look at h2 headers (main section titles) before the tables
+        # Find the first table and only consider headers before it
+        first_table = soup.find('table')
+        
+        headers = soup.find_all(['h2', 'h3'])
         for h in headers:
+            # Skip if after the first table (to avoid footer navigation)
+            if first_table and h.sourceline and first_table.sourceline:
+                if h.sourceline > first_table.sourceline:
+                    # Check if there are more tables after this header
+                    # If so, it might be a valid feature section
+                    pass  # We'll filter by content instead
+            
             text = h.get_text(strip=True)
-            # Check if header contains any feature keyword
-            for keyword in feature_keywords:
-                if keyword in text and len(text) < 100:
-                    # Clean up the text - take main feature name
-                    feature_name = text.split('(')[0].strip()
-                    # Skip if it looks like a table header or data row
-                    skip_keywords = ['capacity', 'power', 'quantity', 'ports', '总功率', '端口数', '数量']
-                    if any(sk in feature_name.lower() for sk in skip_keywords):
-                        continue
-                    if feature_name and feature_name not in features:
-                        features.append(feature_name)
-                    break
+            # Skip if too long or too short
+            if len(text) > 80 or len(text) < 5:
+                continue
+            # Skip if contains skip keywords
+            text_lower = text.lower()
+            if any(sp in text_lower for sp in skip_patterns):
+                continue
+            # Skip "Hardware Specifications (continued)" variations
+            if 'continued' in text_lower:
+                continue
+            # Skip if it looks like navigation/footer (contains common footer terms)
+            if any(term in text_lower for term in ['global', 'help', 'become', 'business']):
+                continue
+            # This looks like a feature title
+            if text and text not in features:
+                features.append(text)
         
         return '; '.join(features) if features else ''
 
