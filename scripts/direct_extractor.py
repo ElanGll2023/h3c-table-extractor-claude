@@ -80,6 +80,21 @@ class DirectTableExtractor:
                         for model_name in model_keys:
                             all_data[model_name].update(series_specs)
         
+        # Post-processing: normalize and merge fields
+        for model_name, specs in all_data.items():
+            # Merge 1G端口数 into 1000Base-T端口数
+            if '1G端口数' in specs and '1000Base-T端口数' not in specs:
+                specs['1000Base-T端口数'] = specs['1G端口数']
+            
+            # Merge POE总功率_AC/DC into POE总功率
+            poe_power_parts = []
+            if 'POE总功率_AC' in specs:
+                poe_power_parts.append(f"AC:{specs['POE总功率_AC']}W")
+            if 'POE总功率_DC' in specs:
+                poe_power_parts.append(f"DC:{specs['POE总功率_DC']}W")
+            if poe_power_parts and 'POE总功率' not in specs:
+                specs['POE总功率'] = '/'.join(poe_power_parts)
+        
         return all_data
     
     def _process_table(self, table: Tag, index: int, page_url: str) -> Optional[Dict[str, Dict]]:
