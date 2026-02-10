@@ -345,6 +345,7 @@ class DirectTableExtractor:
             r'qsfp\+\s*port|qsfp\+\s*光口': 'QSFP+端口数',
             r'qsfp(?!\+)\s*port|qsfp(?!\+)\s*光口': 'QSFP端口数',
             r'qsfp28\s*port|qsfp28\s*光口': 'QSFP28端口数',
+            r'multigiga|multi-giga|2\.5g|5g|多速率': 'MultiGiga端口数',
         }
         
         param_lower = param.lower()
@@ -357,17 +358,23 @@ class DirectTableExtractor:
     
     def _is_port_description(self, feature: str, value: str) -> bool:
         """Check if this is a port description row."""
-        port_keywords = ['sfp', 'qsfp', 'base-t', 'ethernet', 'port', '光口', '电口']
+        port_keywords = ['sfp', 'qsfp', 'base-t', 'ethernet', 'port', '光口', '电口', 'multigiga', 'multi-giga']
         return any(kw in feature.lower() for kw in port_keywords)
     
     def _parse_port_description(self, feature: str, value: str) -> Dict[str, any]:
         """Parse port description into structured data."""
         result = {}
+        
+        # Skip if value is empty or just "/" (indicates not applicable)
+        if not value or value.strip() in ['/', '-', '']:
+            return result
+        
         text = f"{value} {feature}".lower()
+        value_lower = value.lower()
         
         # First, try to extract the main port number from value (e.g., "24 (8*BASE-T combo)")
         # Pattern: number followed by optional combo info
-        main_match = re.match(r'(\d+)\s*(?:\([^)]*\))?', value.lower())
+        main_match = re.match(r'(\d+)\s*(?:\([^)]*\))?', value_lower)
         if main_match:
             port_count = int(main_match.group(1))
             
@@ -382,6 +389,18 @@ class DirectTableExtractor:
                 result['QSFP+端口数'] = port_count
             elif 'sfp' in text:
                 result['SFP端口数'] = port_count
+            elif 'multigiga' in text or '2.5g' in text:
+                # Multigiga port - could be 1G/2.5G/5G/10G
+                result['MultiGiga端口数'] = port_count
+                # Also extract specific speeds if mentioned
+                if '1g' in text:
+                    result['1G端口数'] = port_count
+                if '2.5g' in text or '2.5gb' in text:
+                    result['2.5G端口数'] = port_count
+                if '5g' in text or '5gb' in text:
+                    result['5G端口数'] = port_count
+                if '10g' in text or '10gb' in text:
+                    result['10G端口数'] = port_count
             elif 'base-t' in text or 'ethernet' in text or '电口' in text:
                 result['1000Base-T端口数'] = port_count
         
