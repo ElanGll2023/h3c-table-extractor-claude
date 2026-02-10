@@ -1,0 +1,87 @@
+# H3C 框式交换机配置文件
+# 继承自 H3C-Switch-Box，添加框式特有规则
+
+name: "H3C-Switch-Chassis"
+brand: "H3C"
+product_type: "switch"
+sub_type: "chassis"
+version: "1.0"
+parent_profile: "H3C-Switch-Box"
+
+# URL匹配模式
+url_patterns:
+  - "S125"
+  - "S105"
+  - "S76"
+  - "S75"
+  - "S95"
+  - "S98"
+  - "chassis.*switch"
+
+# 框式交换机特有字段
+default_fields:
+  - "型号"
+  - "型号描述"
+  - "交换机类型"
+  - "交换容量"
+  - "包转发率"
+  - "主控板槽位数"
+  - "业务板槽位数"
+  - "接口板槽位数"
+  - "电源槽位数"
+  - "风扇槽位数"
+  - "最大端口密度"
+  - "MAC地址表"
+  - "VLAN表项"
+  - "路由表项"
+  - "ARP表项"
+  - "ACL规则数"
+  - "支持协议"
+  - "高可用特性"
+  - "虚拟化技术"
+  - "链接地址"
+
+# 框式特有参数映射规则（覆盖或新增）
+param_mapping_rules:
+  - name: "main_control_slots"
+    pattern: "(?i)main\s*control\s*(slots?|board)|主控.*槽位"
+    rule_type: "param_mapping"
+    action: "map_to"
+    params:
+      target: "主控板槽位数"
+    priority: 100
+
+  - name: "service_board_slots"
+    pattern: "(?i)service\s*board\s*slots?|业务板.*槽位|line\s*card\s*slots?"
+    rule_type: "param_mapping"
+    action: "map_to"
+    params:
+      target: "业务板槽位数"
+    priority: 100
+
+  - name: "interface_board_slots"
+    pattern: "(?i)interface\s*board\s*slots?|接口板.*槽位"
+    rule_type: "param_mapping"
+    action: "map_to"
+    params:
+      target: "接口板槽位数"
+    priority: 100
+
+  - name: "fan_tray_slots"
+    pattern: "(?i)fan\s*tray\s*slots?|风扇.*槽位"
+    rule_type: "param_mapping"
+    action: "map_to"
+    params:
+      target: "风扇槽位数"
+    priority: 100
+
+# 后处理规则 - 强制设为框式
+post_processing_rules:
+  - name: "force_chassis_type"
+    pattern: ".*"
+    rule_type: "post_processing"
+    action: "set_field"
+    params:
+      field: "交换机类型"
+      value: "框式交换机"
+    priority: 200

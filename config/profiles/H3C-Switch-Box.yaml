@@ -1,0 +1,260 @@
+# H3C 盒式交换机配置文件
+# 基础模板，可继承或扩展
+
+name: "H3C-Switch-Box"
+brand: "H3C"
+product_type: "switch"
+sub_type: "box"
+version: "1.0"
+parent_profile: null
+
+# 默认输出字段顺序
+default_fields:
+  - "型号"
+  - "型号描述"
+  - "交换机类型"
+  - "交换容量"
+  - "包转发率"
+  - "1000Base-T端口数"
+  - "2.5G端口数"
+  - "5G端口数"
+  - "10G端口数"
+  - "MultiGiga端口数"
+  - "SFP端口数"
+  - "SFP+端口数"
+  - "QSFP+端口数"
+  - "Combo端口数"
+  - "最大堆叠带宽"
+  - "最大堆叠数"
+  - "POE总功率"
+  - "POE端口数(802.3af)"
+  - "POE+端口数(802.3at)"
+  - "POE++端口数(60W)"
+  - "POE++端口数(90W)"
+  - "电源槽位数"
+  - "风扇数量"
+  - "软件特性"
+  - "MAC地址表"
+  - "VLAN表项"
+  - "路由表项"
+  - "ARP表项"
+  - "ACL规则数"
+  - "支持协议"
+  - "系列特性"
+  - "链接地址"
+
+# URL匹配模式
+url_patterns:
+  - "S5130"
+  - "S5590"
+  - "S6520"
+  - "S5560"
+  - "S5500"
+  - "box.*switch"
+
+# 跳过的内容模式
+skip_patterns:
+  - "removable"
+  - "board support"
+  - "filler panel"
+  - "power supply model"
+  - "是否支持"
+  - "硬件规格.*continued"
+
+# 表格检测规则
+table_detection_rules:
+  - name: "protocol_compliance"
+    pattern: "(?i)organization.*ieee|standards and protocols"
+    rule_type: "table_detection"
+    action: "use_extractor"
+    params:
+      extractor: "protocols"
+      handle_rowspan: true
+    priority: 100
+
+  - name: "poe_power"
+    pattern: "(?i)poe power capacity.*quantity|total poe power.*802\.3"
+    rule_type: "table_detection"
+    action: "use_extractor"
+    params:
+      extractor: "poe_power"
+    priority: 90
+
+  - name: "software_features"
+    pattern: "(?i)software specifications|feature.*series.*switch"
+    rule_type: "table_detection"
+    action: "use_extractor"
+    params:
+      extractor: "software"
+      merge_all: true
+    priority: 80
+
+  - name: "performance_metrics"
+    pattern: "(?i)entries.*mac address|performance specification"
+    rule_type: "table_detection"
+    action: "use_extractor"
+    params:
+      extractor: "performance"
+    priority: 80
+
+  - name: "hardware_multi_model"
+    pattern: "(?i)features.*S[0-9]+.*port|port switching capacity.*[0-9]+gbps"
+    rule_type: "table_detection"
+    action: "use_extractor"
+    params:
+      extractor: "multi_model_hardware"
+    priority: 70
+
+# 参数映射规则
+param_mapping_rules:
+  # 端口类
+  - name: "port_switching_capacity"
+    pattern: "(?i)port\s*switching\s*capacity"
+    rule_type: "param_mapping"
+    action: "map_to"
+    params:
+      target: "交换容量"
+    priority: 100
+
+  - name: "forwarding_rate"
+    pattern: "(?i)forwarding\s*(rate|capacity)|包转发率"
+    rule_type: "param_mapping"
+    action: "map_to"
+    params:
+      target: "包转发率"
+    priority: 100
+
+  - name: "ports_1000base_t"
+    pattern: "(?i)1000base-t\s*port|电口.*1000m"
+    rule_type: "param_mapping"
+    action: "map_to"
+    params:
+      target: "1000Base-T端口数"
+    priority: 100
+
+  - name: "ports_sfp_plus"
+    pattern: "(?i)sfp\+\s*port|sfp\+\s*光口"
+    rule_type: "param_mapping"
+    action: "map_to"
+    params:
+      target: "SFP+端口数"
+    priority: 100
+
+  - name: "ports_sfp"
+    pattern: "(?i)sfp(?!\+)\s*port|sfp(?!\+)\s*光口"
+    rule_type: "param_mapping"
+    action: "map_to"
+    params:
+      target: "SFP端口数"
+    priority: 100
+
+  # 硬件规格类
+  - name: "dimensions"
+    pattern: "(?i)dimension|尺寸|外形尺寸"
+    rule_type: "param_mapping"
+    action: "map_to"
+    params:
+      target: "尺寸"
+    priority: 90
+
+  - name: "weight"
+    pattern: "(?i)weight|重量"
+    rule_type: "param_mapping"
+    action: "map_to"
+    params:
+      target: "重量"
+    priority: 90
+
+  - name: "power_supply_slots"
+    pattern: "(?i)power\s*supply\s*slots?|电源槽位|电源数量"
+    rule_type: "param_mapping"
+    action: "map_to"
+    params:
+      target: "电源槽位数"
+    priority: 90
+
+  - name: "fan_count"
+    pattern: "(?i)fan\s*(num|number|quantity)|风扇数量"
+    rule_type: "param_mapping"
+    action: "map_to"
+    params:
+      target: "风扇数量"
+    priority: 90
+
+  # 性能类
+  - name: "mac_table"
+    pattern: "(?i)mac\s*address|mac地址|mac表"
+    rule_type: "param_mapping"
+    action: "map_to"
+    params:
+      target: "MAC地址表"
+    priority: 90
+
+  - name: "vlan_table"
+    pattern: "(?i)vlan\s*table|vlan表项"
+    rule_type: "param_mapping"
+    action: "map_to"
+    params:
+      target: "VLAN表项"
+    priority: 90
+
+  # 管理类
+  - name: "console_port"
+    pattern: "(?i)console|console口|串口"
+    rule_type: "param_mapping"
+    action: "map_to"
+    params:
+      target: "Console口"
+    priority: 80
+
+  - name: "management_port"
+    pattern: "(?i)management|管理口|网管口"
+    rule_type: "param_mapping"
+    action: "map_to"
+    params:
+      target: "管理网口"
+    priority: 80
+
+# 数值提取规则
+value_extraction_rules:
+  - name: "port_count_validation"
+    pattern: "(?i)([0-9]+)\s*(port|端口)"
+    rule_type: "value_extraction"
+    action: "validate_range"
+    params:
+      min: 1
+      max: 96
+      field: "端口数"
+    priority: 100
+
+# 后处理规则
+post_processing_rules:
+  - name: "merge_1g_to_1000base_t"
+    pattern: "1G端口数"
+    rule_type: "post_processing"
+    action: "merge_field"
+    params:
+      source: "1G端口数"
+      target: "1000Base-T端口数"
+      delete_source: true
+    priority: 100
+
+  - name: "merge_poe_ac_dc"
+    pattern: "POE总功率_(AC|DC)"
+    rule_type: "post_processing"
+    action: "merge_poe_power"
+    params:
+      fields: ["POE总功率_AC", "POE总功率_DC"]
+      target: "POE总功率"
+      format: "{type}:{value}W"
+    priority: 100
+
+  - name: "classify_switch_type"
+    pattern: ".*"
+    rule_type: "post_processing"
+    action: "classify"
+    params:
+      field: "交换机类型"
+      chassis_prefixes: ["S125", "S105", "S76", "S75", "S95", "S98"]
+      default: "盒式交换机"
+    priority: 50
