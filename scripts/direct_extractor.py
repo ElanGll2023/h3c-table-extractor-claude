@@ -584,18 +584,29 @@ class DirectTableExtractor:
         result = {}
         
         # Protocols tables usually have: Organization | Standards
+        # But Organization may use rowspan - need to track last org
         protocols_list = []
+        last_org = ''
         
         for row in rows:
             org = row.get(headers[0], '').strip() if headers else ''
             std = row.get(headers[1], '').strip() if len(headers) > 1 else ''
             
+            # Update last_org if we have a new organization
+            if org and not org.startswith('802.') and not org.startswith('RFC'):
+                last_org = org
+            
+            # If org looks like a protocol (starts with 802. or RFC), use last_org
+            if org and (org.startswith('802.') or org.startswith('RFC')):
+                std = org
+                org = last_org
+            
             if org and std:
                 protocols_list.append(f"{org}: {std}")
         
         if protocols_list:
-            # Store as a single entry
-            result['Protocols'] = {'支持协议': '; '.join(protocols_list[:10])}
+            # Store as a single entry with all protocols
+            result['Protocols'] = {'支持协议': '; '.join(protocols_list)}
         
         return result
 
