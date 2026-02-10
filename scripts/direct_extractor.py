@@ -35,6 +35,12 @@ class DirectTableExtractor:
         all_data = {}
         series_data = {}  # Store series-level info (software, protocols, etc.)
         
+        # Extract series features (applies to all models in series)
+        series_features = self._extract_series_features(soup, page_url)
+        
+        # Extract model descriptions from page
+        model_descriptions = self._extract_model_descriptions(soup)
+        
         for i, table in enumerate(tables):
             table_data = self._process_table(table, i, page_url)
             if table_data:
@@ -49,6 +55,19 @@ class DirectTableExtractor:
                         if model_name not in all_data:
                             all_data[model_name] = {}
                         all_data[model_name].update(specs)
+        
+        # Add URL, descriptions, and series features to all models
+        for model_name in all_data:
+            # Add page URL
+            all_data[model_name]['链接地址'] = page_url
+            
+            # Add model description if found
+            if model_name in model_descriptions:
+                all_data[model_name]['型号描述'] = model_descriptions[model_name]
+            
+            # Add series features
+            if series_features:
+                all_data[model_name]['系列特性'] = series_features
         
         # Merge series-level data into all models
         # Find common series prefix
@@ -609,6 +628,93 @@ class DirectTableExtractor:
             result['Protocols'] = {'支持协议': '; '.join(protocols_list)}
         
         return result
+
+    def _extract_model_descriptions(self, soup: BeautifulSoup) -> Dict[str, str]:
+        """Extract model descriptions from the page."""
+        descriptions = {}
+        
+        # Look for text patterns like 'S5130S-28S-EI: 24 x 10/100/1000BASE-T...'
+        text_content = soup.get_text()
+        
+        # Pattern: ModelName: description (up to newline or next model)
+        # Examples:
+        # S5570S-28S-EI: 24 x 10/100/1000BASE-T Ethernet ports, 4 x 1G/10G BASE-X SFP+ ports
+        # S5130S-28P-EI: 24 x 10/100/1000BASE-T Ports and 4 x 1000BASE-X SFP Ports
+        model_patterns = [
+            r'(S\d{4}[A-Z]*-[\w-]+):\s*([0-9x\s/]+(?:BASE-T|Ethernet|Ports|SFP)[^\n;]+?)(?=\n|S\d{4}|$)',
+            r'(S\d{4}[A-Z]*-[\w-]+)\s*[:：]\s*([^\n]+?)(?=\n|S\d{4}|$)',
+        ]
+        
+        for pattern in model_patterns:
+            matches = re.findall(pattern, text_content, re.IGNORECASE)
+            for model, desc in matches:
+                model = model.strip()
+                desc = desc.strip()
+                # Clean up description - take first sentence or up to 200 chars
+                if len(desc) > 200:
+                    desc = desc[:200] + '...'
+                # Only keep if description looks valid (contains port info or reasonable length)
+                if len(desc) > 10 and (any(kw in desc.lower() for kw in ['port', 'base', 'ethernet', 'sfp']) or len(desc) < 100):
+                    descriptions[model] = desc
+        
+        # Also look in specific HTML elements (product cards, descriptions, etc.)
+        # Look for elements that contain both model name and description
+        for elem in soup.find_all(['div', 'p', 'td', 'span']):
+            text = elem.get_text(strip=True)
+            # Check if this element contains a model name
+            model_match = re.search(r'(S\d{4}[A-Z]*-[\w-]+)', text)
+            if model_match:
+                model = model_match.group(1)
+                # Check if there's a description after the model name
+                parts = text.split(model, 1)
+                if len(parts) > 1:
+                    desc = parts[1].strip()
+                    # Remove leading colon or other separators
+                    desc = re.sub(r'^[\s:：]+', '', desc)
+                    # Take reasonable length description
+                    if len(desc) > 10 and len(desc) < 200:
+                        if model not in descriptions:
+                            descriptions[model] = desc
+        
+        return descriptions
+
+    def _extract_series_features(self, soup: BeautifulSoup, page_url: str = "") -> str:
+        """Extract series-level feature keywords from page."""
+        features = []
+        
+        # Common feature section keywords to look for
+        feature_keywords = [
+            'SmartMC', 'Smart Management Center',
+            'IRF2', 'Intelligent Resilient Framework 2',
+            'IRF', 'Intelligent Resilient Framework',
+            'APM', 'Application Performance Management',
+            'EAA', 'Embedded Automation Architecture',
+            'VxLAN',
+            'SDN', 'Software Defined Network',
+            'Comprehensive Security',
+            'Multigigabit',
+            'Smart Link',
+            'RRPP',
+        ]
+        
+        # Look for h2/h3/h4 headers that contain feature names
+        headers = soup.find_all(['h2', 'h3', 'h4', 'strong', 'b'])
+        for h in headers:
+            text = h.get_text(strip=True)
+            # Check if header contains any feature keyword
+            for keyword in feature_keywords:
+                if keyword in text and len(text) < 100:
+                    # Clean up the text - take main feature name
+                    feature_name = text.split('(')[0].strip()
+                    # Skip if it looks like a table header or data row
+                    skip_keywords = ['capacity', 'power', 'quantity', 'ports', '总功率', '端口数', '数量']
+                    if any(sk in feature_name.lower() for sk in skip_keywords):
+                        continue
+                    if feature_name and feature_name not in features:
+                        features.append(feature_name)
+                    break
+        
+        return '; '.join(features) if features else ''
 
 
 # Convenience function
