@@ -384,20 +384,58 @@ class DirectTableExtractor:
         """Parse POE port quantities."""
         result = {}
         
-        # Parse different POE standards
-        af_match = re.search(r'15\.4W.*802\.3af.*?[:\s]+(\d+)', text)
-        at_match = re.search(r'30W.*802\.3at.*?[:\s]+(\d+)', text)
-        bt60_match = re.search(r'60W.*802\.3bt.*?[:\s]+(\d+)', text)
-        bt90_match = re.search(r'90W.*802\.3bt.*?[:\s]+(\d+)', text)
+        # More precise patterns to avoid greedy matching issues
+        # Pattern: 15.4W (802.3af): 8 or 15.4W: 8 (802.3af)
+        af_patterns = [
+            r'15\.4W\s*\(802\.3af\)[:\s]+(\d+)(?!\d)',  # 15.4W (802.3af): 8
+            r'15\.4W[:\s]+(\d+)\s*\(802\.3af\)',       # 15.4W: 8 (802.3af)
+        ]
+        at_patterns = [
+            r'30W\s*\(802\.3at\)[:\s]+(\d+)(?!\d)',     # 30W (802.3at): 4
+            r'30W[:\s]+(\d+)\s*\(802\.3at\)',          # 30W: 4 (802.3at)
+        ]
+        bt60_patterns = [
+            r'60W\s*\(802\.3bt\)[:\s]+(\d+)(?!\d)',    # 60W (802.3bt): X
+            r'60W[:\s]+(\d+)\s*\(802\.3bt\)',          # 60W: X (802.3bt)
+        ]
+        bt90_patterns = [
+            r'90W\s*\(802\.3bt\)[:\s]+(\d+)(?!\d)',    # 90W (802.3bt): X
+            r'90W[:\s]+(\d+)\s*\(802\.3bt\)',          # 90W: X (802.3bt)
+        ]
         
-        if af_match:
-            result['POE端口数(802.3af)'] = int(af_match.group(1))
-        if at_match:
-            result['POE+端口数(802.3at)'] = int(at_match.group(1))
-        if bt60_match:
-            result['POE++端口数(60W)'] = int(bt60_match.group(1))
-        if bt90_match:
-            result['POE++端口数(90W)'] = int(bt90_match.group(1))
+        # Try each pattern group
+        for pattern in af_patterns:
+            match = re.search(pattern, text)
+            if match:
+                val = int(match.group(1))
+                # Validate: port count should be reasonable (1-48)
+                if 1 <= val <= 48:
+                    result['POE端口数(802.3af)'] = val
+                    break
+                
+        for pattern in at_patterns:
+            match = re.search(pattern, text)
+            if match:
+                val = int(match.group(1))
+                if 1 <= val <= 48:
+                    result['POE+端口数(802.3at)'] = val
+                    break
+                
+        for pattern in bt60_patterns:
+            match = re.search(pattern, text)
+            if match:
+                val = int(match.group(1))
+                if 1 <= val <= 48:
+                    result['POE++端口数(60W)'] = val
+                    break
+                
+        for pattern in bt90_patterns:
+            match = re.search(pattern, text)
+            if match:
+                val = int(match.group(1))
+                if 1 <= val <= 48:
+                    result['POE++端口数(90W)'] = val
+                    break
         
         return result
 
