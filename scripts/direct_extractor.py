@@ -572,7 +572,7 @@ class DirectTableExtractor:
         if features:
             # Try to identify the model series from value_col
             model_series = value_col if 'S' in value_col else 'Series'
-            result[model_series] = {'软件特性': '; '.join(features[:10])}  # Limit to first 10
+            result[model_series] = {'软件特性': '; '.join(features)}  # Include ALL features, not just first 10
         
         return result
     
